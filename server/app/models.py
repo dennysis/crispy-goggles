@@ -6,36 +6,33 @@ from flask_jwt_extended import create_access_token
 # Role constants
 USER_ROLES = ('Admin', 'Teacher', 'Parent', 'Student')
 
-# User Model
 class User(db.Model):
     __tablename__ = 'users'
     
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.String(50), nullable=False)  # Admin, Teacher, Parent, Student
-    special_id = db.Column(db.String(50), unique=True)  # Special ID for Parent/Student login
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    email = db.Column(db.String(150), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    role = db.Column(db.String(50), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     __mapper_args__ = {
         'polymorphic_identity': 'user',
         'polymorphic_on': role
     }
-
+    
     def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        self.password = generate_password_hash(password)
     
     def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        return check_password_hash(self.password, password)
     
     def get_token(self, expires_in=3600):
         return create_access_token(identity=self.id, expires_delta=expires_in)
 
     def __repr__(self):
-        return f'<User {self.email}>'
+        return f'<User {self.username}>'
 
-
-# Admin Model
 class Admin(User):
     __tablename__ = 'admins'
     
@@ -64,13 +61,12 @@ class Teacher(User):
         return f'<Teacher {self.email}>'
 
 
-# Parent Model
 class Parent(User):
     __tablename__ = 'parents'
     
     id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
-    students = db.relationship('Student', backref='parent', lazy=True)
-
+    students = db.relationship('Student', foreign_keys='Student.parent_id', backref='parent_relationship', lazy=True)
+    
     __mapper_args__ = {
         'polymorphic_identity': 'Parent',
     }
@@ -78,15 +74,16 @@ class Parent(User):
     def __repr__(self):
         return f'<Parent {self.email}>'
 
-
-# Student Model
 class Student(User):
     __tablename__ = 'students'
     
     id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey('parents.id'))
     attendance_records = db.relationship('Attendance', backref='student', lazy=True)
     fee_records = db.relationship('Fee', backref='student', lazy=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey('parents.id'))
+    
+    # Explicit relationship to Parent
+    parent = db.relationship('Parent', foreign_keys=[parent_id], backref='children')
     
     __mapper_args__ = {
         'polymorphic_identity': 'Student',
@@ -96,7 +93,6 @@ class Student(User):
         return f'<Student {self.email}>'
 
 
-# Attendance Model
 class Attendance(db.Model):
     __tablename__ = 'attendance'
     
@@ -109,7 +105,7 @@ class Attendance(db.Model):
         return f'<Attendance {self.date} - {self.status}>'
 
 
-# Homework Model
+
 class Homework(db.Model):
     __tablename__ = 'homework'
     
@@ -123,8 +119,6 @@ class Homework(db.Model):
     def __repr__(self):
         return f'<Homework {self.title} - Due: {self.due_date}>'
 
-
-# Homework Submission Model
 class HomeworkSubmission(db.Model):
     __tablename__ = 'homework_submissions'
     
@@ -137,8 +131,6 @@ class HomeworkSubmission(db.Model):
     def __repr__(self):
         return f'<Submission {self.id} - Grade: {self.grade}>'
 
-
-# Fee Model
 class Fee(db.Model):
     __tablename__ = 'fees'
     
